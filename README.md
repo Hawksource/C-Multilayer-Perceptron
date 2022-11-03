@@ -9,4 +9,6 @@ Enable creation of training loop where an array of networks are passed in, and m
 
 Make dataset, perhaps some type of logic gate simulation.
 
+Enable loading and testing many training samples in series
+
 Enable saving and loading model weights from an external file.
