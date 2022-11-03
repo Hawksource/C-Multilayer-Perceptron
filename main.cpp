@@ -2,6 +2,7 @@
 #include <vector>
 #include <stdlib.h>
 #include <time.h>
+#include <math.h>
 
 using namespace std;
 //classes
@@ -28,6 +29,7 @@ public:
     double cost;
     network(vector<unsigned>);
     void predict(vector<double>);
+    void predict(vector<double>, vector<double>);
     void printNet();
 
 
@@ -40,17 +42,20 @@ int main()
     vector<unsigned> t;
     t.push_back(3);
     t.push_back(2);
-    t.push_back(5);
+    t.push_back(1);
 
     vector<double> inp;
     inp.push_back(1);
     inp.push_back(2);
     inp.push_back(3);
 
+    vector<double> gt;
+    gt.push_back(5);
+
     network n = network(t);
-    n.printNet();
     n.predict(inp);
-    n.printNet();
+    n.predict(inp, gt);
+    cout <<n.cost << endl;
     return 0;
 }
 
@@ -64,7 +69,6 @@ neuron::neuron()
     if(sign) temp*=-1;
     weight = temp;
     Accumulate = 0;
-    cout << "constructed neuron\n";
 }
 void neuron::setWeight(double Weight)
 {
@@ -107,10 +111,8 @@ void network::predict(vector<double> input)
     //
     for(int i = 0;i<numLayers-1;i++)//for every layer
     {
-        cout << "Feed forward layer\n";
         for(unsigned j = 0;j<Layers[i].size();j++) //for every neuron in the current layer
         {
-            cout << "neuron in layer\n";
             double feedWeight = relu(Layers[i][j].getWeight());
             for(unsigned k = 0;k<Layers[i+1].size();k++) //for every neuron in the 2nd layer
             {
@@ -126,7 +128,64 @@ void network::predict(vector<double> input)
         cout << Layers[numLayers-1][i].Accumulate << "\t";
     }
     cout << endl << endl;
+    for(int i = 0;i<numLayers;i++)
+    {
+        for(unsigned j = 0;j<Layers[i].size();j++)
+        {
+            Layers[i][j].Accumulate = 0;
+        }
+    }
 }
+
+void network::predict(vector<double> input,vector<double> groundTruth)
+{
+    //dimension check
+    if(input.size()!=topology[0])
+    {
+        cout << "Input dimensions do not match, expected " << topology[0];
+        cout << " got " << input.size() << endl;
+        return;
+    }
+    if(groundTruth.size()!=Layers[numLayers-1].size())
+    {
+        cout << "Output dimensions do not match, expected " << Layers[numLayers-1].size();
+        cout << " got " << groundTruth.size() << endl;
+        return;
+    }
+    //putting input into the network
+    for(unsigned i = 0;i<Layers[0].size();i++)
+    {
+        Layers[0][i].Accumulate = input[i];
+    }
+    //
+    for(int i = 0;i<numLayers-1;i++)//for every layer
+    {
+        for(unsigned j = 0;j<Layers[i].size();j++) //for every neuron in the current layer
+        {
+            double feedWeight = relu(Layers[i][j].getWeight());
+            for(unsigned k = 0;k<Layers[i+1].size();k++) //for every neuron in the 2nd layer
+            {
+                //Add the current neuron's accumulate multiplied by its weight to
+                //all neurons in the next layer's accumulate
+                Layers[i+1][k].Accumulate += feedWeight*Layers[i][k].Accumulate;
+            }
+        }
+    }
+    double costSquared = 0;
+   for(unsigned i = 0;i<groundTruth.size();i++)
+   {
+       costSquared +=(groundTruth[i]-Layers[numLayers-1][i].Accumulate)*(groundTruth[i]-Layers[numLayers-1][i].Accumulate);
+   }
+   cost+=sqrt(costSquared);
+    for(int i = 0;i<numLayers;i++)
+    {
+        for(unsigned j = 0;j<Layers[i].size();j++)
+        {
+            Layers[i][j].Accumulate = 0;
+        }
+    }
+}
+
 double network::relu(double in)
 {
     if(in<0) return 0;
