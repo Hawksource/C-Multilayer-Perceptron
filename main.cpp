@@ -9,11 +9,13 @@ using namespace std;
 class neuron
 {
     double weight;
+    int scale;
 public:
     double Accumulate;
-    void setWeight(double);
+    const void setWeight(double);
     double getWeight();
     neuron();
+    neuron(double);
 };
 
 typedef vector<neuron> layer;
@@ -28,6 +30,7 @@ class network
 public:
     double cost;
     network(vector<unsigned>);
+    network(network&, double); // 'copy & slightly change' constructor
     void predict(vector<double>);
     void predict(vector<double>, vector<double>);
     void printNet();
@@ -53,8 +56,9 @@ int main()
     gt.push_back(5);
 
     network n = network(t);
-    n.predict(inp);
-    n.predict(inp, gt);
+    network cn = network(n, 1);
+    n.printNet();
+    cn.printNet();
     cout <<n.cost << endl;
     return 0;
 }
@@ -63,14 +67,21 @@ int main()
 //class functions
 neuron::neuron()
 {
+    scale = 1;
     int sign = rand()%2;
     double temp = rand();
-    while(temp>1) temp/=10.0;
+    while(temp>scale) temp/=10.0;
     if(sign) temp*=-1;
     weight = temp;
     Accumulate = 0;
 }
-void neuron::setWeight(double Weight)
+neuron::neuron(double Weight)
+{
+    scale = 1;
+    weight = Weight;
+    Accumulate = 0;
+}
+const void neuron::setWeight(double Weight)
 {
     weight = Weight;
 }
@@ -90,6 +101,28 @@ network::network(vector<unsigned> Topology)
     {
         Layers.push_back(layer());
         for(unsigned j = 0;j<topology[i];j++) Layers.back().push_back(neuron()); //<= to add bias
+    }
+    cout << "Network constructed\n";
+}
+
+network::network(network &target, double learningRate)
+{
+    topology = target.topology;
+    cost = 0;
+    numLayers = topology.size();
+    for(int i = 0;i<numLayers;i++)
+    {
+        int sign = rand()%2;
+        double temp = rand();
+        while(temp>(learningRate/100.0)) temp/=10.0;
+        if(sign) temp*=-1;
+        Layers.push_back(layer());
+
+        for(unsigned j = 0;j<topology[i];j++)
+            {
+                double tw = target.Layers[i][j].getWeight();
+                Layers.back().push_back(neuron(tw+temp)); //<= to add bias
+            }
     }
     cout << "Network constructed\n";
 }
@@ -188,7 +221,7 @@ void network::predict(vector<double> input,vector<double> groundTruth)
 
 double network::relu(double in)
 {
-    if(in<0) return 0;
+    if(in<0) return in;
     else return in;
 }
 void network::printNet()
