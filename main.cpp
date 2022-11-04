@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include <math.h>
+#include <algorithm>
 
 using namespace std;
 //classes
@@ -38,6 +39,8 @@ public:
     void predict(vector<double>);
     void predict(vector<double>, vector<double>);
     void printNet();
+    unsigned inDim();
+    unsigned outDim();
 
 
 };
@@ -50,10 +53,12 @@ class population
     void Sort(); //sorts networks by their cost
     void cull(); //kills 90% of the worst networks
     void repopulate(); //repopulates the 90% from offshoots of the 10%
+    int Size;
 public:
-    void train(vector<double>, int); //takes a dataset and # of epochs
+    double learningRate;
+    void train(vector<vector<double> >, int); //takes a dataset and # of epochs
     network best(); //returns best network, pop[0] once sorted.
-    population(int,vector<unsigned>);
+    population(int, int, double, vector<unsigned>);
     vector<network> pop; //holds networks
 };
 
@@ -63,22 +68,27 @@ int main()
 {
     srand(time(NULL));
     vector<unsigned> t;
-    t.push_back(3);
     t.push_back(2);
+    t.push_back(9);
     t.push_back(1);
 
-    vector<double> inp;
-    inp.push_back(1);
-    inp.push_back(2);
-    inp.push_back(3);
+    vector<vector<double> > ds;
+    for(unsigned i = 0;i<500;i++)
+    {
+        vector<double> temp;
+        int i1 = rand()%100;
+        int i2 = rand()%100;
+        temp.push_back(i1);
+        temp.push_back(i2);
+        temp.push_back(i1+i2);
+        ds.push_back(temp);
+    }
 
-    vector<double> gt;
-    gt.push_back(5);
+    vector<double> testIn = {18,15};
 
-    network n = network(t, 1);
-    network cn = network(n, 10);
-    n.printNet();
-    cn.printNet();
+    population p = population(100,1,10,t);
+    p.train(ds, 100);
+    p.best().predict(testIn);
     return 0;
 }
 
@@ -125,7 +135,6 @@ network::network(vector<unsigned> Topology, int scale)
         Layers.push_back(layer());
         for(unsigned j = 0;j<topology[i];j++) Layers.back().push_back(neuron(Scale)); //<= to add bias
     }
-    cout << "Network constructed\n";
 }
 
 network::network(network &target, double learningRate)
@@ -158,7 +167,6 @@ network::network(network &target, double learningRate)
                 Layers.back().push_back(neuron(tw*temp, Scale)); //<= to add bias
             }
     }
-    cout << "Network constructed\n";
 }
 
 void network::predict(vector<double> input)
@@ -285,5 +293,88 @@ void network::printNet()
             cout << " | Value: " << Layers[i][j].Accumulate << endl << endl;
         }
         cout << "\n";
+    }
+}
+unsigned network::inDim()
+{
+    return topology[0];
+}
+unsigned network::outDim()
+{
+    return topology.back();
+}
+
+population::population(int SIZE, int scale, double LearningRate, vector<unsigned> Topology)
+{
+    learningRate = LearningRate;
+    Size = SIZE;
+    for(int i = 0;i<SIZE;i++)
+    {
+        pop.push_back(network(Topology,scale));
+    }
+}
+network population::best()
+{
+    return pop[0];
+}
+
+void population::runData(vector<vector<double> > inData)
+{
+    for(unsigned i = 0;i<inData.size();i++)//for each data entry
+    {
+        vector<double> in;
+        vector<double> gt;
+        for(unsigned j = 0;j<pop[0].outDim();j++)
+        {
+            double le = inData[i].back();
+            gt.push_back(le);
+            inData[i].pop_back();
+        }
+        reverse(gt.begin(),gt.end());
+        for(unsigned j = 0;j<pop[0].inDim();j++)
+        {
+            double le = inData[i].back();
+            in.push_back(le);
+            inData[i].pop_back();
+        }
+        reverse(in.begin(),in.end());
+        for(unsigned j = 0;j<pop.size();j++)//for each network in the population
+        {
+            pop[j].predict(in,gt);
+        }
+    }
+}
+void population::Sort()
+{
+    sort(pop.begin(),pop.end());
+}
+void population::cull()
+{
+    for(int i = 0;i<(int)(pop.size()*.9);i++)
+    {
+        //cout << "killed cost " << pop.back().cost << endl;
+        pop.pop_back();
+    }
+}
+void population::repopulate()
+{
+    int bestRange = pop.size();
+    int neededNets = Size-bestRange;
+    for(int i = 0;i<neededNets;i++)
+    {
+        int chooseIndex = rand()%bestRange;
+        network temp  = network(pop[chooseIndex], learningRate);
+        pop.push_back(temp);
+    }
+}
+void population::train(vector<vector<double> > dataset, int epochs)
+{
+    for(unsigned i = 0;i<pop.size();i++) pop[i].cost = 0;
+    for(int i = 0;i< epochs;i++)
+    {
+        runData(dataset);//runs all of the data, getting a total cost for each network
+        Sort(); //sorts
+        cull();//kills off bad networks
+        repopulate();//replaces victims
     }
 }
