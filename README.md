@@ -11,4 +11,4 @@ Make dataset, perhaps some type of logic gate simulation. DONE
 
 Enable loading and testing many training samples in series DONE
 
-Enable saving and loading model weights from an external file.
+Enable saving and loading model weights from an external file. DONE
