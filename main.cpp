@@ -4,6 +4,7 @@
 #include <time.h>
 #include <math.h>
 #include <algorithm>
+#include <fstream>
 
 using namespace std;
 //classes
@@ -13,7 +14,7 @@ class neuron
     int Scale;
 public:
     double Accumulate;
-    const void setWeight(double);
+    void setWeight(double);
     double getWeight();
     neuron(int);
     neuron(double, int);
@@ -41,6 +42,8 @@ public:
     void printNet();
     unsigned inDim();
     unsigned outDim();
+    void exportNet(string);
+    void loadNet(string);
 
 
 };
@@ -66,30 +69,46 @@ public:
 //main
 int main()
 {
+    //making a topology to pass to a network population
     srand(time(NULL));
     vector<unsigned> t;
     t.push_back(2);
     t.push_back(9);
+    t.push_back(3);
     t.push_back(1);
 
+    //making a dataset to train on
     vector<vector<double> > ds;
     for(unsigned i = 0;i<500;i++)
     {
         vector<double> temp;
-        int i1 = rand()%100;
-        int i2 = rand()%100;
+        int i1 = rand()%10;
+        int i2 = rand()%10;
         temp.push_back(i1);
         temp.push_back(i2);
         temp.push_back(i1+i2);
         ds.push_back(temp);
     }
 
-    vector<double> testIn = {9,10};
+    //vector to pass to get a prediction
+    vector<double> testIn = {1,3};
 
-    population p = population(100,1,60,t);
-    p.train(ds, 1000);
-    p.best().predict(testIn);
-    p.best().printNet();
+    //creating a population to evolve
+    population p = population(4000,1,90,t); //(SIZE, scale, learning rate, topology)
+
+    p.train(ds, 10000); // (dataset, epoch#)
+    p.best().predict(testIn); //(datapoint)
+    p.best().exportNet("Adder"); //(filename) {no file extension}
+
+    /*
+    network n1 = network(t,1);
+    network n2 = network(t,1);
+    n2.loadNet("Adder");
+    cout << "Untrained:";
+    n1.predict(testIn);
+     cout << "Trained:";
+    n2.predict(testIn);
+    */
     return 0;
 }
 
@@ -108,15 +127,11 @@ neuron::neuron(double Weight, int scale)
 {
     Scale = scale;
     weight = Weight;
-    if (Weight>Scale) Weight= Scale;//might cause issues in the future with loading
-                                    //in a pretrained model
     Accumulate = 0;
 }
-const void neuron::setWeight(double Weight)
+void neuron::setWeight(double Weight)
 {
     weight = Weight;
-    while(weight>Scale) weight-=Scale; //might cause issues in the future with loading
-                                        //in a pretrained model
 }
 double neuron::getWeight()
 {
@@ -305,6 +320,101 @@ unsigned network::outDim()
     return topology.back();
 }
 
+void network::exportNet(string filename)
+{
+    //creating output file
+    ofstream out;
+    filename+=".txt";
+    out.open(filename);
+    for(unsigned i = 0;i<topology.size();i++)
+    {
+        out << topology[i];
+        if(i+1<=topology.size()) out << "|";
+    }
+
+    out << "[";
+    for(int i = 0;i<numLayers;i++) //for every layer
+    {
+        for(unsigned j = 0;j<Layers[i].size();j++)//for every node in the layer
+        {
+            out << Layers[i][j].getWeight();
+            if(j+1<=Layers[i].size()) out << "|";
+        }
+    }
+    out << "]";
+
+    out.close();
+}
+
+void network::loadNet(string filename)
+{
+    //looks at the desired text file. Reads first few digits with the delimiter '|' to get the topology. Continues and makes a list of the weights.
+    //Reverses the order of the weights and starts adding them to the network and popping them off the list.
+    topology.clear();
+    Layers.clear();
+    ifstream in;
+    filename+=".txt";
+    in.open(filename);
+    if(!in.is_open())
+    {
+        cout << "File not found, unable to load model.\n";
+        return;
+    }
+    string currentNumber;
+    char s;
+    bool onWeights = false;
+    vector<double> weightList;
+    while(in >> s)
+    {
+        if(!onWeights)
+        {
+            if(s=='[')
+            {
+                onWeights = true;
+                currentNumber = "";
+            }
+            else if(s=='|')
+            {
+                topology.push_back((unsigned)stoi(currentNumber));
+                currentNumber = "";
+
+            }
+            else
+            {
+                currentNumber+=s;
+            }
+            continue;
+        }
+        if(s==']')
+            {
+                break;
+            }
+        else if(s=='|')
+        {
+            double w = stod(currentNumber);
+            weightList.push_back(w);
+            currentNumber = "";
+        }
+        else
+        {
+            currentNumber+=s;
+        }
+    }
+    reverse(weightList.begin(), weightList.end());
+    for(unsigned i = 0;i<topology.size();i++)
+    {
+        vector<neuron> tempV;
+        for(unsigned j = 0;j<topology[i];j++)
+        {
+            neuron tempN = neuron(weightList.back(),1);
+            weightList.pop_back();
+            tempV.push_back(tempN);
+        }
+        Layers.push_back(tempV);
+    }
+}
+
+
 population::population(int SIZE, int scale, double LearningRate, vector<unsigned> Topology)
 {
     learningRate = LearningRate;
@@ -347,18 +457,20 @@ void population::runData(vector<vector<double> > inData)
 }
 void population::Sort()
 {
+    //built in sort, would like to replace by a self made one eventually.
     sort(pop.begin(),pop.end());
 }
 void population::cull()
 {
+    //calculates how many the bottom 90% encompass. pops that amount off.
     for(int i = 0;i<(int)(pop.size()*.9);i++)
     {
-        //cout << "killed cost " << pop.back().cost << endl;
         pop.pop_back();
     }
 }
 void population::repopulate()
 {
+    //chooses a random network from the best 10%, creates a deviation of that network. Repeat until population is refilled.
     int bestRange = pop.size();
     int neededNets = Size-bestRange;
     for(int i = 0;i<neededNets;i++)
