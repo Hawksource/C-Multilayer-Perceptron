@@ -84,11 +84,12 @@ int main()
         ds.push_back(temp);
     }
 
-    vector<double> testIn = {18,15};
+    vector<double> testIn = {9,10};
 
-    population p = population(100,1,10,t);
-    p.train(ds, 100);
+    population p = population(100,1,60,t);
+    p.train(ds, 1000);
     p.best().predict(testIn);
+    p.best().printNet();
     return 0;
 }
 
