@@ -94,7 +94,7 @@ int main()
     vector<double> testIn = {1,3};
 
     //creating a population to evolve
-    population p = population(4000,1,90,t); //(SIZE, scale, learning rate, topology)
+    population p = population(100,1,90,t); //(SIZE, scale, learning rate, topology)
 
     p.train(ds, 10000); // (dataset, epoch#)
     p.best().predict(testIn); //(datapoint)
@@ -485,9 +485,15 @@ void population::train(vector<vector<double> > dataset, int epochs)
     for(unsigned i = 0;i<pop.size();i++) pop[i].cost = 0;
     for(int i = 0;i< epochs;i++)
     {
+        system("CLS");
+        cout << "Progress: %";
+        cout << (i/(double)epochs)*100;
         runData(dataset);//runs all of the data, getting a total cost for each network
         Sort(); //sorts
         cull();//kills off bad networks
         repopulate();//replaces victims
     }
+    system("CLS");
+    cout << "Progress: %100";
+    cout << endl;
 }
